@@ -141,8 +141,8 @@ export function WorkBlockEditor({ data }: WorkBlockProps) {
             </Button>
           </div>
           {expandedItems.has(index) && (
-            <div className="p-5 space-y-4 border-t" style={{ borderColor: "rgba(255, 154, 158, 0.15)" }}>
-              <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 md:p-5 space-y-4 border-t" style={{ borderColor: "rgba(255, 154, 158, 0.15)" }}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                 <div>
                   <label className="text-sm text-gray-600 mb-2 block">公司</label>
                   <Input

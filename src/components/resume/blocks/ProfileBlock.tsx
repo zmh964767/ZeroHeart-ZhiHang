@@ -23,7 +23,7 @@ const ASPECT_RATIO = 6 / 5; // 高宽比 6:5（2寸证件照比例）
 const MIN_SIZE = 60;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-const CONTAINER_SIZE = 320;
+const CONTAINER_SIZE = 300; // 减小到 300，更适合移动端
 const INITIAL_CROP_WIDTH = 150;
 const INITIAL_CROP_HEIGHT = INITIAL_CROP_WIDTH * ASPECT_RATIO;
 
@@ -139,8 +139,6 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (!containerRef.current) return;
-    e.preventDefault();
-    e.stopPropagation();
     
     if (e.touches.length === 2) {
       const touch1 = e.touches[0];
@@ -151,6 +149,7 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
       );
       lastTouchDistanceRef.current = distance;
       isResizingRef.current = true;
+      isDraggingRef.current = false;
       dragStartRef.current = { x: 0, y: 0, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
     } else if (e.touches.length === 1) {
       const touch = e.touches[0];
@@ -161,6 +160,7 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
       if (mx >= cropArea.x && mx <= cropArea.x + cropArea.width &&
           my >= cropArea.y && my <= cropArea.y + cropArea.height) {
         isDraggingRef.current = true;
+        isResizingRef.current = false;
         dragStartRef.current = { x: mx, y: my, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
       }
     }
@@ -210,10 +210,9 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!containerRef.current) return;
-    e.preventDefault();
-    e.stopPropagation();
     
     if (e.touches.length === 2 && isResizingRef.current) {
+      e.preventDefault();
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
       const distance = Math.sqrt(
@@ -230,14 +229,26 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
       const constrainedWidth = Math.min(newWidth, maxWidth, maxHeight / ASPECT_RATIO);
       const constrainedHeight = constrainedWidth * ASPECT_RATIO;
 
+      const centerX = dragStartRef.current.cropX + dragStartRef.current.cropW / 2;
+      const centerY = dragStartRef.current.cropY + dragStartRef.current.cropH / 2;
+      
+      const newX = centerX - constrainedWidth / 2;
+      const newY = centerY - constrainedHeight / 2;
+      
+      const constrainedX = Math.max(0, Math.min(newX, CONTAINER_SIZE - constrainedWidth));
+      const constrainedY = Math.max(0, Math.min(newY, CONTAINER_SIZE - constrainedHeight));
+
       setCropArea(prev => ({ 
         ...prev, 
+        x: constrainedX,
+        y: constrainedY,
         width: constrainedWidth, 
         height: constrainedHeight 
       }));
       
       lastTouchDistanceRef.current = distance;
     } else if (e.touches.length === 1 && isDraggingRef.current) {
+      e.preventDefault();
       const touch = e.touches[0];
       const rect = containerRef.current.getBoundingClientRect();
       const mx = touch.clientX - rect.left;
@@ -254,7 +265,7 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
 
       setCropArea(prev => ({ ...prev, x: newX, y: newY }));
     }
-  }, [cropArea.width, cropArea.height]);
+  }, [cropArea]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (!containerRef.current) return;
@@ -298,6 +309,159 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
     isDraggingRef.current = false;
     isResizingRef.current = false;
   }, []);
+
+  const handleTouchCancel = useCallback(() => {
+    isDraggingRef.current = false;
+    isResizingRef.current = false;
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const getPosFromEvent = (clientX: number, clientY: number) => {
+      const rect = container.getBoundingClientRect();
+      return { mx: clientX - rect.left, my: clientY - rect.top };
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      const { mx, my } = getPosFromEvent(e.clientX, e.clientY);
+      const resizeHandleSize = 16;
+
+      const isBottomRight =
+        mx >= cropArea.x + cropArea.width - resizeHandleSize &&
+        mx <= cropArea.x + cropArea.width &&
+        my >= cropArea.y + cropArea.height - resizeHandleSize &&
+        my <= cropArea.y + cropArea.height;
+
+      if (isBottomRight) {
+        isResizingRef.current = true;
+        dragStartRef.current = { x: mx, y: my, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
+      } else if (mx >= cropArea.x && mx <= cropArea.x + cropArea.width &&
+          my >= cropArea.y && my <= cropArea.y + cropArea.height) {
+        isDraggingRef.current = true;
+        dragStartRef.current = { x: mx, y: my, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
+      }
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current && !isResizingRef.current) return;
+      const { mx, my } = getPosFromEvent(e.clientX, e.clientY);
+
+      if (isDraggingRef.current) {
+        const deltaX = mx - dragStartRef.current.x;
+        const deltaY = my - dragStartRef.current.y;
+        let newX = Math.max(0, Math.min(dragStartRef.current.cropX + deltaX, CONTAINER_SIZE - cropArea.width));
+        let newY = Math.max(0, Math.min(dragStartRef.current.cropY + deltaY, CONTAINER_SIZE - cropArea.height));
+        setCropArea(prev => ({ ...prev, x: newX, y: newY }));
+      } else if (isResizingRef.current) {
+        const newWidth = Math.max(MIN_SIZE, dragStartRef.current.cropW + (mx - dragStartRef.current.x));
+        const newHeight = newWidth * ASPECT_RATIO;
+        const maxWidth = CONTAINER_SIZE - dragStartRef.current.cropX;
+        const maxHeight = CONTAINER_SIZE - dragStartRef.current.cropY;
+        const constrainedWidth = Math.min(newWidth, maxWidth, maxHeight / ASPECT_RATIO);
+        setCropArea(prev => ({ ...prev, width: constrainedWidth, height: constrainedWidth * ASPECT_RATIO }));
+      }
+    };
+
+    const onMouseUp = () => {
+      isDraggingRef.current = false;
+      isResizingRef.current = false;
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        const t1 = e.touches[0], t2 = e.touches[1];
+        lastTouchDistanceRef.current = Math.sqrt(Math.pow(t1.clientX - t2.clientX, 2) + Math.pow(t1.clientY - t2.clientY, 2));
+        isResizingRef.current = true;
+        isDraggingRef.current = false;
+        dragStartRef.current = { x: 0, y: 0, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
+      } else if (e.touches.length === 1) {
+        const { mx, my } = getPosFromEvent(e.touches[0].clientX, e.touches[0].clientY);
+        if (mx >= cropArea.x && mx <= cropArea.x + cropArea.width && my >= cropArea.y && my <= cropArea.y + cropArea.height) {
+          isDraggingRef.current = true;
+          isResizingRef.current = false;
+          dragStartRef.current = { x: mx, y: my, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
+        }
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isDraggingRef.current && !isResizingRef.current) return;
+      e.preventDefault();
+
+      if (e.touches.length === 2 && isResizingRef.current) {
+        const t1 = e.touches[0], t2 = e.touches[1];
+        const distance = Math.sqrt(Math.pow(t1.clientX - t2.clientX, 2) + Math.pow(t1.clientY - t2.clientY, 2));
+        const scale = distance / lastTouchDistanceRef.current;
+        const newWidth = Math.max(MIN_SIZE, dragStartRef.current.cropW * scale);
+        const newHeight = newWidth * ASPECT_RATIO;
+        const maxWidth = CONTAINER_SIZE - dragStartRef.current.cropX;
+        const maxHeight = CONTAINER_SIZE - dragStartRef.current.cropY;
+        const cw = Math.min(newWidth, maxWidth, maxHeight / ASPECT_RATIO);
+        const ch = cw * ASPECT_RATIO;
+        const cx = dragStartRef.current.cropX + dragStartRef.current.cropW / 2;
+        const cy = dragStartRef.current.cropY + dragStartRef.current.cropH / 2;
+        setCropArea(prev => ({
+          ...prev,
+          x: Math.max(0, Math.min(cx - cw / 2, CONTAINER_SIZE - cw)),
+          y: Math.max(0, Math.min(cy - ch / 2, CONTAINER_SIZE - ch)),
+          width: cw,
+          height: ch,
+        }));
+        lastTouchDistanceRef.current = distance;
+      } else if (e.touches.length === 1 && isDraggingRef.current) {
+        const { mx, my } = getPosFromEvent(e.touches[0].clientX, e.touches[0].clientY);
+        const dx = mx - dragStartRef.current.x;
+        const dy = my - dragStartRef.current.y;
+        setCropArea(prev => ({
+          ...prev,
+          x: Math.max(0, Math.min(dragStartRef.current.cropX + dx, CONTAINER_SIZE - prev.width)),
+          y: Math.max(0, Math.min(dragStartRef.current.cropY + dy, CONTAINER_SIZE - prev.height)),
+        }));
+      }
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const { mx, my } = getPosFromEvent(e.clientX, e.clientY);
+      if (mx < cropArea.x - 20 || mx > cropArea.x + cropArea.width + 20 ||
+          my < cropArea.y - 20 || my > cropArea.y + cropArea.height + 20) return;
+
+      const scaleFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      const nw = Math.max(MIN_SIZE, Math.min(cropArea.width * scaleFactor, CONTAINER_SIZE - cropArea.x));
+      const nh = nw * ASPECT_RATIO;
+      const cx = cropArea.x + cropArea.width / 2;
+      const cy = cropArea.y + cropArea.height / 2;
+      setCropArea(prev => ({
+        ...prev,
+        x: Math.max(0, Math.min(cx - nw / 2, CONTAINER_SIZE - nw)),
+        y: Math.max(0, Math.min(cy - nh / 2, CONTAINER_SIZE - nh)),
+        width: nw,
+        height: nh,
+      }));
+    };
+
+    container.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    container.addEventListener("touchstart", onTouchStart, { passive: true });
+    container.addEventListener("touchmove", onTouchMove, { passive: false });
+    container.addEventListener("touchend", handleTouchEnd, { passive: true });
+    container.addEventListener("touchcancel", handleTouchCancel, { passive: true });
+    container.addEventListener("wheel", onWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", handleTouchEnd);
+      container.removeEventListener("touchcancel", handleTouchCancel);
+      container.removeEventListener("wheel", onWheel);
+    };
+  }, [cropArea, handleTouchEnd, handleTouchCancel]);
 
   const applyCrop = useCallback(() => {
     if (!cropImage || !canvasRef.current) return;
@@ -353,15 +517,12 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
           <div
             ref={containerRef}
             className="relative bg-gray-100 overflow-hidden select-none rounded-xl"
-            style={{ width: CONTAINER_SIZE, height: CONTAINER_SIZE }}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onWheel={handleWheel}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            style={{ 
+              width: CONTAINER_SIZE, 
+              height: CONTAINER_SIZE,
+              touchAction: "none",
+              WebkitTouchCallout: "none",
+            }}
           >
             <img
               src={cropImage || ''}
@@ -400,9 +561,9 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
           </div>
         </div>
       ) : (
-        <div className="flex gap-6">
+        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
           <div className="flex-1 space-y-3">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="text-sm text-gray-600 mb-2 block">姓名</label>
                 <Input
@@ -464,7 +625,7 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
                   }}
                 />
               </div>
-              <div className="col-span-2">
+              <div className="col-span-1 sm:col-span-2">
                 <label className="text-sm text-gray-600 mb-2 block">所在城市</label>
                 <Input
                   value={localLocation}
@@ -482,7 +643,7 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
             </div>
           </div>
 
-          <div className="flex flex-col items-center space-y-2">
+          <div className="flex flex-col items-center space-y-2 sm:self-start">
             <div
               className="w-32 h-40 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:scale-105 transition-all overflow-hidden"
               style={{ 

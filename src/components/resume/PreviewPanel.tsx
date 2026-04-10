@@ -91,9 +91,9 @@ export function PreviewPanel({ onClose }: PreviewPanelProps) {
         <div
           id="preview-content"
           className="bg-white shadow-lg overflow-hidden"
-          style={{ width: "100%", maxWidth: `${A4_WIDTH_PX}px`, minHeight: `${A4_HEIGHT_PX}px` }}
+          style={{ width: "100%", maxWidth: `${A4_WIDTH_PX}px`, minHeight: `${A4_HEIGHT_PX}px`, transformOrigin: "top center" }}
         >
-          <div className={cn("p-4 md:p-8", TEMPLATE_BG[template])}>
+          <div className={cn("p-3 md:p-8", TEMPLATE_BG[template])}>
             {modules.profile && (
               <div className="flex gap-6 mb-2">
                 <div>

@@ -97,7 +97,7 @@ export function AISidebar({ open, onClose }: AISidebarProps) {
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-40 md:hidden" onClick={onClose} />
-      <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:h-full md:w-[480px] w-full bg-white shadow-xl z-50 flex flex-col">
+      <div className="fixed inset-0 md:inset-auto md:right-0 md:top-0 md:h-full md:w-[420px] lg:w-[480px] w-full bg-white shadow-xl z-50 flex flex-col">
         <header className="flex items-center justify-between px-4 py-3 border-b">
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
@@ -214,8 +214,8 @@ export function AISidebar({ open, onClose }: AISidebarProps) {
         </div>
 
         {selectedModule && (
-          <div className="p-4 border-t bg-gray-50">
-            <div className="flex gap-3">
+          <div className="p-3 md:p-4 border-t bg-gray-50">
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
               <Button
                 variant="outline"
                 onClick={handleRegenerate}
