@@ -139,6 +139,33 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
     }
   }, [cropArea]);
 
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!containerRef.current) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = containerRef.current.getBoundingClientRect();
+    const mx = touch.clientX - rect.left;
+    const my = touch.clientY - rect.top;
+
+    const handle = getHandleAt(mx, my, cropArea);
+    if (handle) {
+      isResizingRef.current = true;
+      resizeHandleRef.current = handle;
+      resizeStartRef.current = {
+        x: mx, y: my,
+        cropX: cropArea.x, cropY: cropArea.y,
+        cropW: cropArea.width, cropH: cropArea.height,
+      };
+      return;
+    }
+
+    if (mx >= cropArea.x && mx <= cropArea.x + cropArea.width &&
+        my >= cropArea.y && my <= cropArea.y + cropArea.height) {
+      isDraggingRef.current = true;
+      dragStartRef.current = { x: mx, y: my, cropX: cropArea.x, cropY: cropArea.y };
+    }
+  }, [cropArea]);
+
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -217,6 +244,91 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
   }, [cropArea.width, cropArea.height]);
 
   const handleMouseUp = useCallback(() => {
+    isDraggingRef.current = false;
+    isResizingRef.current = false;
+    resizeHandleRef.current = null;
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!containerRef.current) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = containerRef.current.getBoundingClientRect();
+    const mx = touch.clientX - rect.left;
+    const my = touch.clientY - rect.top;
+
+    if (isResizingRef.current && resizeHandleRef.current && containerRef.current) {
+      const start = resizeStartRef.current;
+      const containerW = containerRef.current.offsetWidth;
+      const containerH = containerRef.current.offsetHeight;
+      let dx = mx - start.x;
+      let dy = my - start.y;
+
+      let newX = start.cropX;
+      let newY = start.cropY;
+      let newW = start.cropW;
+      let newH = start.cropH;
+
+      const handle = resizeHandleRef.current;
+
+      if (handle === "br") {
+        newW = Math.max(MIN_SIZE, Math.min(start.cropW + dx, containerW - start.cropX));
+        newH = newW / ASPECT_RATIO;
+        if (newY + newH > containerH) {
+          newH = containerH - newY;
+          newW = newH * ASPECT_RATIO;
+        }
+      } else if (handle === "bl") {
+        newW = Math.max(MIN_SIZE, Math.min(start.cropW - dx, start.cropX + start.cropW));
+        newX = start.cropX + start.cropW - newW;
+        newH = newW / ASPECT_RATIO;
+        newY = start.cropY + start.cropH - newH;
+        if (newY < 0) {
+          newY = 0;
+          newH = Math.max(MIN_SIZE, start.cropY + start.cropH);
+          newW = newH * ASPECT_RATIO;
+          newX = start.cropX + start.cropW - newW;
+        }
+      } else if (handle === "tr") {
+        newW = Math.max(MIN_SIZE, Math.min(start.cropW + dx, containerW - start.cropX));
+        newH = newW / ASPECT_RATIO;
+        newY = start.cropY + start.cropH - newH;
+        if (newY < 0) {
+          newY = 0;
+          newH = Math.max(MIN_SIZE, start.cropY + start.cropH);
+          newW = newH * ASPECT_RATIO;
+        }
+      } else if (handle === "tl") {
+        newW = Math.max(MIN_SIZE, Math.min(start.cropW - dx, start.cropX + start.cropW));
+        newX = start.cropX + start.cropW - newW;
+        newH = newW / ASPECT_RATIO;
+        newY = start.cropY + start.cropH - newH;
+        if (newY < 0 || newX < 0) {
+          newY = Math.max(0, newY);
+          newX = Math.max(0, newX);
+          newH = Math.max(MIN_SIZE, newH);
+          newW = newH * ASPECT_RATIO;
+        }
+      }
+
+      setCropArea({ x: newX, y: newY, width: newW, height: newH });
+      return;
+    }
+
+    if (!isDraggingRef.current) return;
+    const deltaX = mx - dragStartRef.current.x;
+    const deltaY = my - dragStartRef.current.y;
+
+    let newX = dragStartRef.current.cropX + deltaX;
+    let newY = dragStartRef.current.cropY + deltaY;
+
+    newX = Math.max(0, Math.min(newX, (containerRef.current?.offsetWidth || 200) - cropArea.width));
+    newY = Math.max(0, Math.min(newY, (containerRef.current?.offsetHeight || 200) - cropArea.height));
+
+    setCropArea(prev => ({ ...prev, x: newX, y: newY }));
+  }, [cropArea.width, cropArea.height]);
+
+  const handleTouchEnd = useCallback(() => {
     isDraggingRef.current = false;
     isResizingRef.current = false;
     resizeHandleRef.current = null;
@@ -301,6 +413,9 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
             onMouseMove={handleMouseMoveForCursor}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
           >
             <img
               src={cropImage || ''}

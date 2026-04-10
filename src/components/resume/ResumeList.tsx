@@ -1,12 +1,17 @@
 "use client";
 
+import { useEffect } from "react";
 import { useResumeStore } from "@/stores/resume";
 import { ResumeCard } from "./ResumeCard";
 import { CreateResumeModal } from "./CreateResumeModal";
 import { FileText } from "lucide-react";
 
 export function ResumeList() {
-  const { resumes, isLoading } = useResumeStore();
+  const { resumes, isLoading, loadResumes } = useResumeStore();
+
+  useEffect(() => {
+    loadResumes();
+  }, [loadResumes]);
 
   if (isLoading) {
     return (
