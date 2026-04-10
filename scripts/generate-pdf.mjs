@@ -11,6 +11,9 @@ const FONT_BOLD = `${FONT_DIR}/NotoSansSC-Bold.ttf`;
 
 const COLORS = {
   simple: { name: [0, 0, 0], title: [102, 102, 102], info: [153, 153, 153], header: [0, 0, 0], sectionLine: [0, 0, 0] },
+  modern: { name: [0, 0, 0], title: [102, 102, 102], info: [153, 153, 153], header: [0, 0, 0], sectionLine: [0, 0, 0] },
+  classic: { name: [0, 0, 0], title: [102, 102, 102], info: [153, 153, 153], header: [0, 0, 0], sectionLine: [0, 0, 0] },
+  creative: { name: [0, 0, 0], title: [102, 102, 102], info: [153, 153, 153], header: [0, 0, 0], sectionLine: [0, 0, 0] },
 };
 
 const A4_HEIGHT_PT = 841.89;

@@ -11,8 +11,11 @@ const FONT_DIR = path.join(process.cwd(), "public/fonts");
 const FONT_REGULAR = `${FONT_DIR}/NotoSansSC-Regular.ttf`;
 const FONT_BOLD = `${FONT_DIR}/NotoSansSC-Bold.ttf`;
 
-const COLORS = {
+const COLORS: Record<string, { name: number[]; title: number[]; info: number[]; header: number[]; sectionLine: number[] }> = {
   simple: { name: [0, 0, 0], title: [102, 102, 102], info: [153, 153, 153], header: [0, 0, 0], sectionLine: [0, 0, 0] },
+  modern: { name: [0, 0, 0], title: [102, 102, 102], info: [153, 153, 153], header: [0, 0, 0], sectionLine: [0, 0, 0] },
+  classic: { name: [0, 0, 0], title: [102, 102, 102], info: [153, 153, 153], header: [0, 0, 0], sectionLine: [0, 0, 0] },
+  creative: { name: [0, 0, 0], title: [102, 102, 102], info: [153, 153, 153], header: [0, 0, 0], sectionLine: [0, 0, 0] },
 };
 
 const A4_HEIGHT_PT = 841.89;
