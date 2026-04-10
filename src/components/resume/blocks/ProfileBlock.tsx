@@ -19,10 +19,13 @@ interface CropArea {
   height: number;
 }
 
-const ASPECT_RATIO = 5 / 6;
-const MIN_SIZE = 30;
+const ASPECT_RATIO = 6 / 5; // 高宽比 6:5（2寸证件照比例）
+const MIN_SIZE = 60;
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const CONTAINER_SIZE = 320;
+const INITIAL_CROP_WIDTH = 150;
+const INITIAL_CROP_HEIGHT = INITIAL_CROP_WIDTH * ASPECT_RATIO;
 
 export function ProfileBlockEditor({ data }: ProfileBlockProps) {
   const { updateContent } = useResumeStore();
@@ -32,11 +35,18 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
   );
   const [isCropping, setIsCropping] = useState(false);
   const [cropImage, setCropImage] = useState<string | null>(null);
-  const [cropArea, setCropArea] = useState<CropArea>({ x: 0, y: 0, width: 100, height: 120 });
+  const [cropArea, setCropArea] = useState<CropArea>({ 
+    x: (CONTAINER_SIZE - INITIAL_CROP_WIDTH) / 2, 
+    y: (CONTAINER_SIZE - INITIAL_CROP_HEIGHT) / 2, 
+    width: INITIAL_CROP_WIDTH, 
+    height: INITIAL_CROP_HEIGHT 
+  });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
-  const dragStartRef = useRef({ x: 0, y: 0, cropX: 0, cropY: 0 });
+  const isResizingRef = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0, cropX: 0, cropY: 0, cropW: 0, cropH: 0 });
+  const lastTouchDistanceRef = useRef(0);
 
   const [localName, setLocalName] = useState(data.name);
   const [localTitle, setLocalTitle] = useState(data.title);
@@ -90,7 +100,12 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
         return;
       }
       setCropImage(base64);
-      setCropArea({ x: 0, y: 0, width: 100, height: 120 });
+      setCropArea({ 
+        x: (CONTAINER_SIZE - INITIAL_CROP_WIDTH) / 2, 
+        y: (CONTAINER_SIZE - INITIAL_CROP_HEIGHT) / 2, 
+        width: INITIAL_CROP_WIDTH, 
+        height: INITIAL_CROP_HEIGHT 
+      });
       setIsCropping(true);
     };
     reader.onerror = () => {
@@ -105,10 +120,20 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
-    if (mx >= cropArea.x && mx <= cropArea.x + cropArea.width &&
+    const resizeHandleSize = 12;
+    const isBottomRight = 
+      mx >= cropArea.x + cropArea.width - resizeHandleSize &&
+      mx <= cropArea.x + cropArea.width &&
+      my >= cropArea.y + cropArea.height - resizeHandleSize &&
+      my <= cropArea.y + cropArea.height;
+
+    if (isBottomRight) {
+      isResizingRef.current = true;
+      dragStartRef.current = { x: mx, y: my, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
+    } else if (mx >= cropArea.x && mx <= cropArea.x + cropArea.width &&
         my >= cropArea.y && my <= cropArea.y + cropArea.height) {
       isDraggingRef.current = true;
-      dragStartRef.current = { x: mx, y: my, cropX: cropArea.x, cropY: cropArea.y };
+      dragStartRef.current = { x: mx, y: my, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
     }
   }, [cropArea]);
 
@@ -117,65 +142,161 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
     e.preventDefault();
     e.stopPropagation();
     
-    // 移动端简化：只支持拖拽
-    const touch = e.touches[0];
-    const rect = containerRef.current.getBoundingClientRect();
-    const mx = touch.clientX - rect.left;
-    const my = touch.clientY - rect.top;
+    if (e.touches.length === 2) {
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const distance = Math.sqrt(
+        Math.pow(touch1.clientX - touch2.clientX, 2) +
+        Math.pow(touch1.clientY - touch2.clientY, 2)
+      );
+      lastTouchDistanceRef.current = distance;
+      isResizingRef.current = true;
+      dragStartRef.current = { x: 0, y: 0, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
+    } else if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const rect = containerRef.current.getBoundingClientRect();
+      const mx = touch.clientX - rect.left;
+      const my = touch.clientY - rect.top;
 
-    if (mx >= cropArea.x && mx <= cropArea.x + cropArea.width &&
-        my >= cropArea.y && my <= cropArea.y + cropArea.height) {
-      isDraggingRef.current = true;
-      dragStartRef.current = { x: mx, y: my, cropX: cropArea.x, cropY: cropArea.y };
+      if (mx >= cropArea.x && mx <= cropArea.x + cropArea.width &&
+          my >= cropArea.y && my <= cropArea.y + cropArea.height) {
+        isDraggingRef.current = true;
+        dragStartRef.current = { x: mx, y: my, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
+      }
     }
   }, [cropArea]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!containerRef.current || !isDraggingRef.current) return;
+    if (!containerRef.current) return;
+    
+    if (isDraggingRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      const deltaX = mx - dragStartRef.current.x;
+      const deltaY = my - dragStartRef.current.y;
+
+      let newX = dragStartRef.current.cropX + deltaX;
+      let newY = dragStartRef.current.cropY + deltaY;
+
+      newX = Math.max(0, Math.min(newX, CONTAINER_SIZE - cropArea.width));
+      newY = Math.max(0, Math.min(newY, CONTAINER_SIZE - cropArea.height));
+
+      setCropArea(prev => ({ ...prev, x: newX, y: newY }));
+    } else if (isResizingRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      const deltaX = mx - dragStartRef.current.x;
+      const deltaY = my - dragStartRef.current.y;
+
+      const newWidth = Math.max(MIN_SIZE, dragStartRef.current.cropW + deltaX);
+      const newHeight = newWidth * ASPECT_RATIO;
+
+      const maxWidth = CONTAINER_SIZE - dragStartRef.current.cropX;
+      const maxHeight = CONTAINER_SIZE - dragStartRef.current.cropY;
+      const constrainedWidth = Math.min(newWidth, maxWidth, maxHeight / ASPECT_RATIO);
+      const constrainedHeight = constrainedWidth * ASPECT_RATIO;
+
+      setCropArea(prev => ({ 
+        ...prev, 
+        width: constrainedWidth, 
+        height: constrainedHeight 
+      }));
+    }
+  }, [cropArea.width, cropArea.height]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!containerRef.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.touches.length === 2 && isResizingRef.current) {
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const distance = Math.sqrt(
+        Math.pow(touch1.clientX - touch2.clientX, 2) +
+        Math.pow(touch1.clientY - touch2.clientY, 2)
+      );
+      
+      const scale = distance / lastTouchDistanceRef.current;
+      const newWidth = Math.max(MIN_SIZE, dragStartRef.current.cropW * scale);
+      const newHeight = newWidth * ASPECT_RATIO;
+
+      const maxWidth = CONTAINER_SIZE - dragStartRef.current.cropX;
+      const maxHeight = CONTAINER_SIZE - dragStartRef.current.cropY;
+      const constrainedWidth = Math.min(newWidth, maxWidth, maxHeight / ASPECT_RATIO);
+      const constrainedHeight = constrainedWidth * ASPECT_RATIO;
+
+      setCropArea(prev => ({ 
+        ...prev, 
+        width: constrainedWidth, 
+        height: constrainedHeight 
+      }));
+      
+      lastTouchDistanceRef.current = distance;
+    } else if (e.touches.length === 1 && isDraggingRef.current) {
+      const touch = e.touches[0];
+      const rect = containerRef.current.getBoundingClientRect();
+      const mx = touch.clientX - rect.left;
+      const my = touch.clientY - rect.top;
+
+      const deltaX = mx - dragStartRef.current.x;
+      const deltaY = my - dragStartRef.current.y;
+
+      let newX = dragStartRef.current.cropX + deltaX;
+      let newY = dragStartRef.current.cropY + deltaY;
+
+      newX = Math.max(0, Math.min(newX, CONTAINER_SIZE - cropArea.width));
+      newY = Math.max(0, Math.min(newY, CONTAINER_SIZE - cropArea.height));
+
+      setCropArea(prev => ({ ...prev, x: newX, y: newY }));
+    }
+  }, [cropArea.width, cropArea.height]);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (!containerRef.current) return;
+    e.preventDefault();
+    
     const rect = containerRef.current.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
 
-    const deltaX = mx - dragStartRef.current.x;
-    const deltaY = my - dragStartRef.current.y;
-
-    let newX = dragStartRef.current.cropX + deltaX;
-    let newY = dragStartRef.current.cropY + deltaY;
-
-    newX = Math.max(0, Math.min(newX, (containerRef.current?.offsetWidth || 200) - cropArea.width));
-    newY = Math.max(0, Math.min(newY, (containerRef.current?.offsetHeight || 200) - cropArea.height));
-
-    setCropArea(prev => ({ ...prev, x: newX, y: newY }));
-  }, [cropArea.width, cropArea.height]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!containerRef.current || !isDraggingRef.current) return;
-    e.preventDefault();
-    e.stopPropagation();
-    
-    const touch = e.touches[0];
-    const rect = containerRef.current.getBoundingClientRect();
-    const mx = touch.clientX - rect.left;
-    const my = touch.clientY - rect.top;
-
-    const deltaX = mx - dragStartRef.current.x;
-    const deltaY = my - dragStartRef.current.y;
-
-    let newX = dragStartRef.current.cropX + deltaX;
-    let newY = dragStartRef.current.cropY + deltaY;
-
-    newX = Math.max(0, Math.min(newX, (containerRef.current?.offsetWidth || 200) - cropArea.width));
-    newY = Math.max(0, Math.min(newY, (containerRef.current?.offsetHeight || 200) - cropArea.height));
-
-    setCropArea(prev => ({ ...prev, x: newX, y: newY }));
-  }, [cropArea.width, cropArea.height]);
+    if (mx >= cropArea.x - 20 && mx <= cropArea.x + cropArea.width + 20 &&
+        my >= cropArea.y - 20 && my <= cropArea.y + cropArea.height + 20) {
+      const scaleFactor = e.deltaY > 0 ? 0.9 : 1.1;
+      const newWidth = Math.max(MIN_SIZE, Math.min(cropArea.width * scaleFactor, CONTAINER_SIZE - cropArea.x));
+      const newHeight = newWidth * ASPECT_RATIO;
+      
+      const centerX = cropArea.x + cropArea.width / 2;
+      const centerY = cropArea.y + cropArea.height / 2;
+      
+      const newX = centerX - newWidth / 2;
+      const newY = centerY - newHeight / 2;
+      
+      const constrainedX = Math.max(0, Math.min(newX, CONTAINER_SIZE - newWidth));
+      const constrainedY = Math.max(0, Math.min(newY, CONTAINER_SIZE - newHeight));
+      
+      setCropArea(prev => ({ 
+        ...prev, 
+        x: constrainedX,
+        y: constrainedY,
+        width: newWidth, 
+        height: newHeight 
+      }));
+    }
+  }, [cropArea]);
 
   const handleMouseUp = useCallback(() => {
     isDraggingRef.current = false;
+    isResizingRef.current = false;
   }, []);
 
   const handleTouchEnd = useCallback(() => {
     isDraggingRef.current = false;
+    isResizingRef.current = false;
   }, []);
 
   const applyCrop = useCallback(() => {
@@ -191,8 +312,8 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
       canvas.width = 200;
       canvas.height = 240;
 
-      const scaleX = img.width / 200;
-      const scaleY = img.height / 200;
+      const scaleX = img.width / CONTAINER_SIZE;
+      const scaleY = img.height / CONTAINER_SIZE;
       const sx = cropArea.x * scaleX;
       const sy = cropArea.y * scaleY;
       const sWidth = cropArea.width * scaleX;
@@ -228,14 +349,16 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
           border: "1px solid rgba(255, 154, 158, 0.2)",
         }}>
           <p className="text-sm text-gray-600">拖动框选区域进行裁剪（2寸证件照比例 5:6）</p>
-          <p className="text-xs text-gray-500">移动端：仅支持拖拽，不支持缩放</p>
+          <p className="text-xs text-gray-500">鼠标滚轮缩放 / 双指缩放 / 拖拽右下角调整大小</p>
           <div
             ref={containerRef}
-            className="relative w-[200px] h-[200px] bg-gray-100 overflow-hidden select-none rounded-xl"
+            className="relative bg-gray-100 overflow-hidden select-none rounded-xl"
+            style={{ width: CONTAINER_SIZE, height: CONTAINER_SIZE }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
+            onWheel={handleWheel}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
@@ -246,14 +369,19 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
               className="w-full h-full object-cover pointer-events-none"
             />
             <div
-              className="absolute border-2 border-white shadow-lg bg-black/20"
+              className="absolute border-2 border-white shadow-lg bg-black/20 cursor-move"
               style={{
                 left: cropArea.x,
                 top: cropArea.y,
                 width: cropArea.width,
                 height: cropArea.height,
               }}
-            />
+            >
+              <div 
+                className="absolute bottom-0 right-0 w-4 h-4 bg-white border-2 border-gray-800 cursor-se-resize"
+                style={{ marginBottom: '-4px', marginRight: '-4px' }}
+              />
+            </div>
           </div>
           <canvas ref={canvasRef} className="hidden" />
           <div className="flex gap-2">
@@ -392,7 +520,12 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
                   size="sm"
                   onClick={() => {
                     setCropImage(photoPreview);
-                    setCropArea({ x: 0, y: 0, width: 100, height: 120 });
+                    setCropArea({ 
+                      x: (CONTAINER_SIZE - INITIAL_CROP_WIDTH) / 2, 
+                      y: (CONTAINER_SIZE - INITIAL_CROP_HEIGHT) / 2, 
+                      width: INITIAL_CROP_WIDTH, 
+                      height: INITIAL_CROP_HEIGHT 
+                    });
                     setIsCropping(true);
                   }}
                   className="text-xs"
