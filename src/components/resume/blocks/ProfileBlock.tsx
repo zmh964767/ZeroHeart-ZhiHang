@@ -378,7 +378,19 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
         dragStartRef.current = { x: 0, y: 0, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
       } else if (e.touches.length === 1) {
         const { mx, my } = getPosFromEvent(e.touches[0].clientX, e.touches[0].clientY);
-        if (mx >= cropArea.x && mx <= cropArea.x + cropArea.width && my >= cropArea.y && my <= cropArea.y + cropArea.height) {
+        const resizeHandleSize = 28;
+        
+        const isBottomRight =
+          mx >= cropArea.x + cropArea.width - resizeHandleSize &&
+          mx <= cropArea.x + cropArea.width + 4 &&
+          my >= cropArea.y + cropArea.height - resizeHandleSize &&
+          my <= cropArea.y + cropArea.height + 4;
+
+        if (isBottomRight) {
+          isResizingRef.current = true;
+          isDraggingRef.current = false;
+          dragStartRef.current = { x: mx, y: my, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
+        } else if (mx >= cropArea.x && mx <= cropArea.x + cropArea.width && my >= cropArea.y && my <= cropArea.y + cropArea.height) {
           isDraggingRef.current = true;
           isResizingRef.current = false;
           dragStartRef.current = { x: mx, y: my, cropX: cropArea.x, cropY: cropArea.y, cropW: cropArea.width, cropH: cropArea.height };
@@ -393,7 +405,7 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
       if (e.touches.length === 2 && isResizingRef.current) {
         const t1 = e.touches[0], t2 = e.touches[1];
         const distance = Math.sqrt(Math.pow(t1.clientX - t2.clientX, 2) + Math.pow(t1.clientY - t2.clientY, 2));
-        const scale = distance / lastTouchDistanceRef.current;
+        const scale = Math.max(0.5, Math.min(2, distance / lastTouchDistanceRef.current));
         const newWidth = Math.max(MIN_SIZE, dragStartRef.current.cropW * scale);
         const newHeight = newWidth * ASPECT_RATIO;
         const maxWidth = CONTAINER_SIZE - dragStartRef.current.cropX;
@@ -410,15 +422,25 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
           height: ch,
         }));
         lastTouchDistanceRef.current = distance;
-      } else if (e.touches.length === 1 && isDraggingRef.current) {
+      } else if (e.touches.length === 1) {
         const { mx, my } = getPosFromEvent(e.touches[0].clientX, e.touches[0].clientY);
-        const dx = mx - dragStartRef.current.x;
-        const dy = my - dragStartRef.current.y;
-        setCropArea(prev => ({
-          ...prev,
-          x: Math.max(0, Math.min(dragStartRef.current.cropX + dx, CONTAINER_SIZE - prev.width)),
-          y: Math.max(0, Math.min(dragStartRef.current.cropY + dy, CONTAINER_SIZE - prev.height)),
-        }));
+
+        if (isResizingRef.current) {
+          const newWidth = Math.max(MIN_SIZE, dragStartRef.current.cropW + (mx - dragStartRef.current.x));
+          const newHeight = newWidth * ASPECT_RATIO;
+          const maxWidth = CONTAINER_SIZE - dragStartRef.current.cropX;
+          const maxHeight = CONTAINER_SIZE - dragStartRef.current.cropY;
+          const cw = Math.min(newWidth, maxWidth, maxHeight / ASPECT_RATIO);
+          setCropArea(prev => ({ ...prev, width: cw, height: cw * ASPECT_RATIO }));
+        } else if (isDraggingRef.current) {
+          const dx = mx - dragStartRef.current.x;
+          const dy = my - dragStartRef.current.y;
+          setCropArea(prev => ({
+            ...prev,
+            x: Math.max(0, Math.min(dragStartRef.current.cropX + dx, CONTAINER_SIZE - prev.width)),
+            y: Math.max(0, Math.min(dragStartRef.current.cropY + dy, CONTAINER_SIZE - prev.height)),
+          }));
+        }
       }
     };
 
@@ -473,8 +495,10 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
     const img = new Image();
     img.src = cropImage;
     img.onload = () => {
-      canvas.width = 200;
-      canvas.height = 240;
+      const OUTPUT_WIDTH = 400;
+      const OUTPUT_HEIGHT = Math.round(OUTPUT_WIDTH * ASPECT_RATIO);
+      canvas.width = OUTPUT_WIDTH;
+      canvas.height = OUTPUT_HEIGHT;
 
       const scaleX = img.width / CONTAINER_SIZE;
       const scaleY = img.height / CONTAINER_SIZE;
@@ -483,8 +507,8 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
       const sWidth = cropArea.width * scaleX;
       const sHeight = cropArea.height * scaleY;
 
-      ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, 200, 240);
-      const croppedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+      ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
+      const croppedBase64 = canvas.toDataURL('image/jpeg', 0.92);
 
       setPhotoPreview(croppedBase64);
       setIsCropping(false);
@@ -539,7 +563,7 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
               }}
             >
               <div 
-                className="absolute bottom-0 right-0 w-4 h-4 bg-white border-2 border-gray-800 cursor-se-resize"
+                className="absolute bottom-0 right-0 w-6 h-6 bg-white border-2 border-gray-800 cursor-se-resize z-10"
                 style={{ marginBottom: '-4px', marginRight: '-4px' }}
               />
             </div>

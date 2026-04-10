@@ -14,18 +14,22 @@ export async function generatePDF(resume: Resume): Promise<void> {
     const url = URL.createObjectURL(blob);
     
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const fileName = (resume.name || "简历").trim() || "简历";
     
     if (isMobile) {
       try {
-        if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], `${resume.name || "简历"}.pdf`, { type: "application/pdf" })] })) {
-          const file = new File([blob], `${resume.name || "简历"}.pdf`, { type: "application/pdf" });
-          await navigator.share({
-            title: `${resume.name || "简历"} - PDF简历`,
-            files: [file],
-          });
-        } else {
-          window.open(url, "_blank");
+        if (navigator.share && navigator.canShare) {
+          const file = new File([blob], `${fileName}.pdf`, { type: "application/pdf" });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              title: `${fileName} - PDF简历`,
+              files: [file],
+            });
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            return;
+          }
         }
+        window.open(url, "_blank");
       } catch (shareError) {
         window.open(url, "_blank");
       }
