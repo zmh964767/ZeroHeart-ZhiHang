@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AI_PROVIDERS, getAIProvider } from '@/lib/ai';
+import { getAIProvider } from '@/lib/ai';
+import type { AIProvider } from '@/lib/ai';
 
 interface ErrorResponse {
   error: {
@@ -7,6 +8,11 @@ interface ErrorResponse {
     message: string;
     details?: string;
   };
+}
+
+interface AIProviderWithCredentials extends AIProvider {
+  apiKey: string;
+  endpoint: string;
 }
 
 function createErrorResponse(code: string, message: string, status: number, details?: string): NextResponse<ErrorResponse> {
@@ -58,7 +64,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const aiProvider = getAIProvider(requestedProvider);
+    const aiProvider = getAIProvider(requestedProvider) as AIProviderWithCredentials;
 
     if (!aiProvider.apiKey) {
       const envVarName = `${requestedProvider.toUpperCase()}_API_KEY`;
