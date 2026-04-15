@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Using <img> for dynamic base64 user-uploaded photos, which is appropriate for this use case */
+
 import { useState, useRef, useEffect, useCallback } from "react";
 import { ProfileBlock as ProfileBlockType } from "@/lib/resume/types";
 import { Input } from "@/components/ui/input";
@@ -548,10 +550,12 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
               WebkitTouchCallout: "none",
             }}
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={cropImage || ''}
               alt="裁剪预览"
               className="w-full h-full object-cover pointer-events-none"
+              draggable={false}
             />
             <div
               className="absolute border-2 border-white shadow-lg bg-black/20 cursor-move"
@@ -678,6 +682,7 @@ export function ProfileBlockEditor({ data }: ProfileBlockProps) {
               }}
               onClick={() => fileInputRef.current?.click()}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               {photoPreview ? (
                 <img
                   src={photoPreview}

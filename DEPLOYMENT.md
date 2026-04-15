@@ -1,623 +1,294 @@
-# 部署与运维指南
+# Deployment Guide
 
-本指南将帮助你部署项目并建立运维迭代流程。
+This guide covers multiple deployment options for the ZeroHeart Resume Builder.
 
-## 目录
+## Table of Contents
 
-- [部署平台选择](#部署平台选择)
-- [部署前准备](#部署前准备)
-- [部署步骤](#部署步骤)
-- [运维监控](#运维监控)
-- [错误追踪](#错误追踪)
-- [性能分析](#性能分析)
-- [用户反馈收集](#用户反馈收集)
-- [CI/CD 流程](#cicd-流程)
-- [版本发布流程](#版本发布流程)
+- [Prerequisites](#prerequisites)
+- [Vercel Deployment (Recommended)](#vercel-deployment-recommended)
+- [Docker Deployment](#docker-deployment)
+- [Manual Server Deployment](#manual-server-deployment)
+- [Environment Variables](#environment-variables)
+- [Post-Deployment Checklist](#post-deployment-checklist)
 
----
+## Prerequisites
 
-## 部署平台选择
+Before deploying, ensure you have:
 
-### 推荐平台
+- Node.js >= 18
+- npm or yarn
+- At least one AI API key (see Environment Variables section)
+- Git repository (for Vercel/GitHub Actions deployment)
 
-#### 1. Vercel（推荐）
-**优点：**
-- Next.js 官方推荐，一键部署
-- 自动 HTTPS 和 CDN
-- 实时预览和分支部署
-- 免费额度充足
-- 内置 Analytics
+## Vercel Deployment (Recommended)
 
-**缺点：**
-- 服务器函数有执行时间限制（Vercel Pro 是 60 秒）
+Vercel is the recommended hosting platform for Next.js applications.
 
-#### 2. Netlify
-**优点：**
-- 类似 Vercel 的体验
-- 表单处理、边缘函数
-- 免费额度不错
-
-#### 3. 阿里云/腾讯云
-**优点：**
-- 完全控制
-- 国内访问速度快
-- 适合有一定运维经验的用户
-
-**缺点：**
-- 需要自己配置环境
-- 成本较高
-
----
-
-## 部署前准备
-
-### 1. 环境变量配置
-
-确保 `.env.example` 包含所有必需的环境变量：
-
-```env
-# AI API Keys
-# 至少配置一个 API Key 才能使用 AI 功能
-
-# 智谱 AI (https://open.bigmodel.cn/)
-ZHIPU_API_KEY=
-
-# 文心一言 (https://cloud.baidu.com/product/wenxinworkshop)
-WENXIN_API_KEY=
-WENXIN_ACCESS_TOKEN=
-
-# 通义千问 (https://dashscope.aliyun.com/)
-TONGYI_API_KEY=
-
-# Kimi (https://platform.moonshot.cn/)
-KIMI_API_KEY=
-
-# DeepSeek (https://platform.deepseek.com/)
-DEEPSEEK_API_KEY=
-```
-
-### 2. 安全检查清单
-
-- [ ] 所有 API Key 都没有 `NEXT_PUBLIC_` 前缀
-- [ ] `.env` 文件已添加到 `.gitignore`
-- [ ] `.env.local` 不会被提交到仓库
-- [ ] 敏感信息已从代码中移除
-- [ ] 输入验证已到位
-
-### 3. 构建测试
-
-在部署前确保构建通过：
+### Option 1: Deploy via Vercel CLI
 
 ```bash
-npm run build
-npm start  # 测试生产服务器
-```
-
----
-
-## 部署步骤
-
-### Vercel 部署（推荐）
-
-#### 方式一：Git 集成（推荐）
-
-1. **推送代码到 GitHub/GitLab**
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   git remote add origin <your-repo-url>
-   git push -u origin main
-   ```
-
-2. **访问 Vercel.com**
-   - 用 GitHub/GitLab 账号登录
-   - 点击 "New Project"
-   - 选择你的仓库
-
-3. **配置项目**
-   - Project Name: `zeroheart-zhihang`（或你喜欢的名字）
-   - Framework Preset: `Next.js`（自动检测）
-   - Root Directory: `./`
-
-4. **配置环境变量**
-   - 在 Vercel Dashboard → Settings → Environment Variables
-   - 添加所有需要的环境变量（从 `.env.example` 复制）
-   - **重要**：确保没有勾选 "Automatically expose System Environment Variables"
-
-5. **部署**
-   - 点击 "Deploy"
-   - 等待 1-2 分钟
-   - 部署成功后会获得一个 URL（如 `https://zeroheart-zhihang.vercel.app`）
-
-#### 方式二：Vercel CLI
-
-```bash
-# 安装 Vercel CLI
+# Install Vercel CLI
 npm i -g vercel
 
-# 登录
+# Login to Vercel
 vercel login
 
-# 部署（预览环境）
+# Deploy
 vercel
 
-# 部署到生产环境
+# Deploy to production
 vercel --prod
 ```
 
-### Netlify 部署
+### Option 2: Deploy via GitHub Integration
 
-1. 推送代码到 GitHub
-2. 访问 netlify.com
-3. 点击 "Add new site" → "Import an existing project"
-4. 选择你的仓库
-5. 配置构建命令：`npm run build`
-6. 配置发布目录：`.next`
-7. 在 Site settings → Environment variables 添加环境变量
-8. 点击 "Deploy site"
+1. Push your code to GitHub
+2. Go to [vercel.com](https://vercel.com) and sign in
+3. Click "New Project"
+4. Import your GitHub repository
+5. Configure environment variables in Vercel dashboard:
+   - Go to Project Settings → Environment Variables
+   - Add all required keys (see below)
+6. Click "Deploy"
 
----
+### Configuration
 
-## 运维监控
+The project includes `vercel.json` with optimal settings:
 
-### 1. Vercel Analytics（推荐）
+- **Region**: Hong Kong (`hnd1`) for better Asian access
+- **CORS**: Configured for API routes
+- **Build**: Automatic Next.js build detection
 
-**启用方式：**
-1. Vercel Dashboard → Analytics
-2. 点击 "Enable"
-3. 选择 "Web Analytics"
+## Docker Deployment
 
-**可以查看：**
-- 实时访问人数
-- 页面访问量
-- 流量来源
-- 设备和浏览器分布
-- 地理位置
+For containerized deployments, use Docker:
 
-### 2. 自定义日志记录
+### Dockerfile
 
-在 API 路由中添加结构化日志：
+Create a `Dockerfile` in the project root:
 
-```typescript
-// src/lib/logger.ts
-export function logInfo(message: string, data?: any) {
-  console.log(JSON.stringify({
-    timestamp: new Date().toISOString(),
-    level: 'INFO',
-    message,
-    ...data
-  }));
-}
+```dockerfile
+FROM node:20-alpine AS base
 
-export function logError(message: string, error?: Error, data?: any) {
-  console.error(JSON.stringify({
-    timestamp: new Date().toISOString(),
-    level: 'ERROR',
-    message,
-    error: error?.message,
-    stack: error?.stack,
-    ...data
-  }));
-}
+# Install dependencies only when needed
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Rebuild the source code only when needed
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN npm run build
+
+# Production image, copy all the files and run nextjs
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+
+# Set the correct permission for prerender cache
+RUN mkdir .next
+RUN chown nextjs:nodejs .next
+
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]
 ```
 
-在 API 路由中使用：
-
-```typescript
-import { logInfo, logError } from '@/lib/logger';
-
-export async function POST(request: NextRequest) {
-  try {
-    logInfo('PDF generation started', { resumeId: resume.id });
-    // ... 业务逻辑
-    logInfo('PDF generation completed', { resumeId: resume.id });
-  } catch (error) {
-    logError('PDF generation failed', error as Error, { resumeId: resume.id });
-    throw error;
-  }
-}
-```
-
-### 3. 健康检查端点
-
-创建一个健康检查端点：
-
-```typescript
-// src/app/api/health/route.ts
-import { NextResponse } from 'next/server';
-
-export async function GET() {
-  return NextResponse.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || 'unknown',
-  });
-}
-```
-
-使用 UptimeRobot 或类似服务监控：
-- 每 5 分钟访问 `/api/health`
-- 配置告警通知（邮件、短信、Slack 等）
-
----
-
-## 错误追踪
-
-### 1. Sentry（推荐）
-
-**集成步骤：**
-
-1. **注册 Sentry 账号**
-   - 访问 sentry.io
-   - 创建新项目，选择 Next.js
-
-2. **安装依赖**
-   ```bash
-   npm install @sentry/nextjs
-   ```
-
-3. **配置 Sentry**
-   ```typescript
-   // next.config.js
-   const { withSentryConfig } = require('@sentry/nextjs');
-
-   const nextConfig = {
-     // 你的现有配置
-   };
-
-   module.exports = withSentryConfig(nextConfig, {
-     org: "your-org",
-     project: "your-project",
-     silent: true,
-   });
-   ```
-
-4. **创建配置文件**
-   ```typescript
-   // sentry.client.config.ts
-   import * as Sentry from '@sentry/nextjs';
-
-   Sentry.init({
-     dsn: 'YOUR_SENTRY_DSN',
-     tracesSampleRate: 1.0,
-   });
-   ```
-
-   ```typescript
-   // sentry.server.config.ts
-   import * as Sentry from '@sentry/nextjs';
-
-   Sentry.init({
-     dsn: 'YOUR_SENTRY_DSN',
-     tracesSampleRate: 1.0,
-   });
-   ```
-
-5. **添加环境变量**
-   - 在部署平台添加 `SENTRY_DSN`
-
-**能获得什么：**
-- 实时错误告警
-- 错误堆栈追踪
-- 错误发生频率统计
-- 用户影响范围
-- 性能监控
-
-### 2. 错误告警配置
-
-**重要告警：**
-- [ ] 5xx 错误率 > 5%
-- [ ] API 响应时间 > 3秒
-- [ ] PDF 生成失败率 > 10%
-- [ ] AI API 错误率 > 20%
-
----
-
-## 性能分析
-
-### 1. Lighthouse 审计
-
-定期运行 Lighthouse 审计：
+### Build and Run
 
 ```bash
-# 使用 Chrome DevTools
-# 或使用 CLI
-npm install -g @lhci/cli
-lhci autorun --url=https://your-domain.com
+# Build image
+docker build -t zeroheart-resume .
+
+# Run container
+docker run -p 3000:3000 \
+  -e ZHIPU_API_KEY=your_key_here \
+  zeroheart-resume
 ```
 
-**关注指标：**
-- LCP（ Largest Contentful Paint）< 2.5s
-- FID（First Input Delay）< 100ms
-- CLS（Cumulative Layout Shift）< 0.1
-- TTI（Time to Interactive）< 3.8s
+### Docker Compose (Optional)
 
-### 2. Next.js Bundle Analyzer
-
-分析打包大小：
-
-```bash
-npm install -D @next/bundle-analyzer
-```
-
-```javascript
-// next.config.js
-const withBundleAnalyzer = require('@next/bundle-analyzer')({
-  enabled: process.env.ANALYZE === 'true',
-});
-
-module.exports = withBundleAnalyzer(nextConfig);
-```
-
-```bash
-ANALYZE=true npm run build
-```
-
-### 3. 性能监控清单
-
-- [ ] 字体预加载
-- [ ] 图片懒加载
-- [ ] 代码分割（Next.js 自动处理）
-- [ ] 第三方库按需加载
-- [ ] API 响应时间监控
-
----
-
-## 用户反馈收集
-
-### 1. 内置反馈表单
-
-在应用中添加反馈入口：
-
-```typescript
-// src/components/FeedbackButton.tsx
-'use client';
-
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { useState } from 'react';
-
-export function FeedbackButton() {
-  const [open, setOpen] = useState(false);
-  const [feedback, setFeedback] = useState('');
-
-  const submitFeedback = async () => {
-    // 发送到你的反馈收集服务
-    await fetch('/api/feedback', {
-      method: 'POST',
-      body: JSON.stringify({ feedback, timestamp: new Date().toISOString() }),
-    });
-    setOpen(false);
-    setFeedback('');
-    // 提示用户感谢
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="fixed bottom-4 right-4">
-          反馈建议
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>告诉我们你的想法</DialogTitle>
-        </DialogHeader>
-        <Textarea
-          placeholder="遇到了什么问题？有什么改进建议？"
-          value={feedback}
-          onChange={(e) => setFeedback(e.target.value)}
-          rows={5}
-        />
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setOpen(false)}>取消</Button>
-          <Button onClick={submitFeedback}>提交</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-```
-
-### 2. 使用第三方服务
-
-- **Google Forms** - 免费、简单
-- **Typeform** - 美观的表单
-- **Tidio** - 在线聊天和反馈
-- **Hotjar** - 用户行为录制和热图
-
-### 3. 反馈分类
-
-建立反馈分类系统：
-- 🐛 Bug 报告
-- ✨ 功能建议
-- 🎨 UI/UX 改进
-- 📖 文档问题
-- ❓ 使用问题
-
----
-
-## CI/CD 流程
-
-### 使用 GitHub Actions
-
-创建 `.github/workflows/main.yml`：
+Create `docker-compose.yml`:
 
 ```yaml
-name: CI/CD Pipeline
+version: '3.8'
 
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Run lint
-        run: npm run lint
-      
-      - name: Run tests
-        run: npm run test:run
-      
-      - name: Build
-        run: npm run build
-        env:
-          # 提供必需的环境变量（可以是占位符）
-          ZHIPU_API_KEY: dummy_key_for_build
-
-  deploy:
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    environment: production
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v20
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.ORG_ID }}
-          vercel-project-id: ${{ secrets.PROJECT_ID }}
-          vercel-args: '--prod'
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - ZHIPU_API_KEY=${ZHIPU_API_KEY}
+      - WENXIN_API_KEY=${WENXIN_API_KEY}
+      - TONGYI_API_KEY=${TONGYI_API_KEY}
+    restart: unless-stopped
 ```
 
-### 必需的 GitHub Secrets
-
-在仓库 Settings → Secrets and variables → Actions 中添加：
-
-- `VERCEL_TOKEN` - 从 vercel.com/account/tokens 获取
-- `ORG_ID` - 从 Vercel 项目设置获取
-- `PROJECT_ID` - 从 Vercel 项目设置获取
-
----
-
-## 版本发布流程
-
-### 1. 语义化版本
-
-遵循 Semantic Versioning：
-- `MAJOR` - 不兼容的 API 变更
-- `MINOR` - 向下兼容的功能新增
-- `PATCH` - 向下兼容的问题修复
-
-### 2. 发布检查清单
-
-发布新版本前：
-
-- [ ] 所有测试通过 `npm run test:run`
-- [ ] 构建成功 `npm run build`
-- [ ] 代码已 lint `npm run lint`
-- [ ] 更新 CHANGELOG.md
-- [ ] 更新 package.json 版本号
-- [ ] 创建 Git tag
-- [ ] 部署到预览环境验证
-- [ ] 部署到生产环境
-
-### 3. CHANGELOG 模板
-
-```markdown
-# Changelog
-
-## [1.1.0] - 2024-01-15
-
-### ✨ 新功能
-- 添加了多语言支持
-- 新增简历模板
-
-### 🐛 Bug 修复
-- 修复了 PDF 导出中文乱码问题
-- 修复了移动端布局问题
-
-### 🚀 性能优化
-- 优化了首页加载速度
-- 减少了打包体积
-
-## [1.0.0] - 2024-01-01
-
-### 🎉 初始发布
-- 简历编辑功能
-- PDF 导出
-- AI 辅助填充
+Run with:
+```bash
+docker-compose up -d
 ```
 
----
+## Manual Server Deployment
 
-## 运维快速参考
+For traditional VPS or cloud server deployment:
 
-### 常用命令
+### 1. Clone and Build
 
 ```bash
-# 本地开发
-npm run dev
-
-# 构建生产版本
+git clone https://github.com/zmh964767/ZeroHeart-ZhiHang.git
+cd ZeroHeart-ZhiHang
+npm install
 npm run build
-
-# 启动生产服务器
-npm start
-
-# 运行测试
-npm run test:run
-
-# 代码检查
-npm run lint
-
-# 查看日志（Vercel）
-# Vercel Dashboard → Functions → Logs
 ```
 
-### 紧急回滚
+### 2. Set Environment Variables
 
-如果发布出现问题：
+```bash
+export ZHIPU_API_KEY="your_key_here"
+# ... other variables
+```
 
-1. **Vercel 回滚**
-   - Vercel Dashboard → Deployments
-   - 找到之前成功的部署
-   - 点击 "..." → "Promote to Production"
+Or create `.env.production.local`:
+```env
+ZHIPU_API_KEY=your_key_here
+```
 
-2. **Git 回滚**
-   ```bash
-   git revert <bad-commit-hash>
-   git push
-   # CI/CD 会自动部署
-   ```
+### 3. Start Application
 
-### 联系支持
+```bash
+# Development mode
+npm start
 
-- Vercel 支持: vercel.com/support
-- Sentry 支持: sentry.io/support
-- 项目 Issue: 你的 GitHub 仓库 Issues
+# Or use PM2 for production
+pm2 start npm --name "resume-builder" -- start
+pm2 save
+pm2 startup
+```
 
----
+### 4. Set up Reverse Proxy (Nginx Example)
 
-## 总结
+```nginx
+server {
+    listen 80;
+    server_resume your-domain.com;
 
-建立完整的运维流程需要：
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
 
-1. **选择合适的部署平台**（Vercel 推荐）
-2. **配置监控和告警**（Sentry + UptimeRobot）
-3. **收集用户反馈**（内置表单 + 第三方服务）
-4. **建立 CI/CD 流程**（GitHub Actions）
-5. **定义版本发布流程**（语义化版本 + CHANGELOG）
+## Environment Variables
 
-这样你就可以：
-- ✅ 快速发现和修复问题
-- ✅ 持续改进产品
-- ✅ 确保服务稳定性
-- ✅ 高效迭代新版本
+All AI provider keys are optional, but at least one is required for AI features:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ZHIPU_API_KEY` | No* | Zhipu AI API key (default provider) |
+| `WENXIN_API_KEY` | No | Baidu Wenxin API key |
+| `WENXIN_ACCESS_TOKEN` | No | Baidu Wenxin access token |
+| `TONGYI_API_KEY` | No | Alibaba Tongyi Qianwen API key |
+| `KIMI_API_KEY` | No | Moonshot Kimi API key |
+| `DEEPSEEK_API_KEY` | No | DeepSeek API key |
+
+\*At least one AI provider key must be configured
+
+### Getting API Keys
+
+- **Zhipu AI**: [https://open.bigmodel.cn/](https://open.bigmodel.cn/)
+- **Wenxin**: [https://cloud.baidu.com/product/wenxinworkshop](https://cloud.baidu.com/product/wenxinworkshop)
+- **Tongyi**: [https://dashscope.aliyun.com/](https://dashscope.aliyun.com/)
+- **Kimi**: [https://platform.moonshot.cn/](https://platform.moonshot.cn/)
+- **DeepSeek**: [https://platform.deepseek.com/](https://platform.deepseek.com/)
+
+## Post-Deployment Checklist
+
+After deployment, verify:
+
+- [ ] Application loads correctly at the domain URL
+- [ ] Resume creation and editing works
+- [ ] PDF export generates downloadable file
+- [ ] AI features work (if API keys configured)
+- [ ] Mobile responsiveness on real devices
+- [ ] HTTPS is enabled (for production)
+- [ ] Custom domain configured (if applicable)
+- [ ] Error monitoring set up (optional but recommended)
+
+## CI/CD with GitHub Actions
+
+The project includes a GitHub Actions workflow (`.github/workflows/ci.yml`) that:
+
+1. Runs tests on Node.js 18 and 20
+2. Runs ESLint
+3. Builds the project
+4. Deploys to Vercel on main branch pushes
+
+To enable:
+
+1. Add secrets to GitHub repository settings:
+   - `VERCEL_TOKEN`
+   - `VERCEL_ORG_ID`
+   - `VERCEL_PROJECT_ID`
+2. Push to `master` or `main` branch
+
+## Troubleshooting
+
+### Build Fails
+
+```bash
+# Clear cache and rebuild
+rm -rf .next node_modules
+npm install
+npm run build
+```
+
+### AI Features Not Working
+
+- Verify API keys are set correctly
+- Check API key validity and quota
+- Review server logs for error messages
+
+### PDF Generation Issues
+
+- Ensure font files exist in `public/fonts/`
+- Check server has enough memory for PDF generation
+- Verify file size limits (max 5MB)
+
+## Support
+
+For issues or questions:
+- Open an issue on GitHub
+- Check existing documentation in README.md
+- Review test files for usage examples

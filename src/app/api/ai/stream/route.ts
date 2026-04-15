@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ZhipuProvider } from '@/lib/ai/providers/zhipu';
-
-const zhipuProvider = new ZhipuProvider();
+import { AI_PROVIDERS, getAIProvider } from '@/lib/ai';
 
 interface ErrorResponse {
   error: {
@@ -24,9 +22,17 @@ function createErrorResponse(code: string, message: string, status: number, deta
   );
 }
 
+const SUPPORTED_PROVIDERS = ['zhipu', 'wenxin', 'tongyi', 'kimi', 'deepseek'] as const;
+type ProviderName = typeof SUPPORTED_PROVIDERS[number];
+
+function isValidProvider(name: string): name is ProviderName {
+  return SUPPORTED_PROVIDERS.includes(name as ProviderName);
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { prompt } = await request.json().catch(() => ({ prompt: null }));
+    const body = await request.json().catch(() => ({}));
+    const { prompt, provider: requestedProvider = 'zhipu' } = body;
 
     if (!prompt || typeof prompt !== 'string') {
       return createErrorResponse(
@@ -44,12 +50,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!zhipuProvider.apiKey) {
+    if (!isValidProvider(requestedProvider)) {
+      return createErrorResponse(
+        'INVALID_PROVIDER',
+        `不支持的 AI 提供商: ${requestedProvider}。支持的提供商: ${SUPPORTED_PROVIDERS.join(', ')}`,
+        400
+      );
+    }
+
+    const aiProvider = getAIProvider(requestedProvider);
+
+    if (!aiProvider.apiKey) {
+      const envVarName = `${requestedProvider.toUpperCase()}_API_KEY`;
       return createErrorResponse(
         'MISSING_API_KEY',
-        'ZHIPU_API_KEY 环境变量未设置',
+        `${envVarName} 环境变量未设置`,
         500,
-        '请在 .env.local 文件中配置 ZHIPU_API_KEY'
+        `请在 .env.local 文件中配置 ${envVarName}`
       );
     }
 
@@ -58,14 +75,14 @@ export async function POST(request: NextRequest) {
 
     let response: Response;
     try {
-      response = await fetch(zhipuProvider.endpoint, {
+      response = await fetch(aiProvider.endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${zhipuProvider.apiKey}`,
+          Authorization: `Bearer ${aiProvider.apiKey}`,
         },
         body: JSON.stringify({
-          model: 'glm-4',
+          model: aiProvider.name === '智谱清言' ? 'glm-4' : 'default',
           messages: [{ role: 'user', content: prompt }],
         }),
         signal: controller.signal,
@@ -103,7 +120,7 @@ export async function POST(request: NextRequest) {
           'UNAUTHORIZED',
           'API Key 无效或已过期',
           401,
-          '请检查 ZHIPU_API_KEY 是否正确'
+          `请检查 ${requestedProvider.toUpperCase()}_API_KEY 是否正确`
         );
       }
 
@@ -166,7 +183,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ content });
+    return NextResponse.json({ 
+      content,
+      provider: requestedProvider,
+    });
   } catch (error) {
     console.error('AI stream API error:', error);
 

@@ -67,6 +67,7 @@ export function DemoDialog({ children }: { children: React.ReactNode }) {
                 </div>
                 {profile.photo && (
                   <div className="flex-shrink-0 ml-auto">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={profile.photo} alt="证件照" className="w-20 h-24 object-cover rounded" />
                   </div>
                 )}

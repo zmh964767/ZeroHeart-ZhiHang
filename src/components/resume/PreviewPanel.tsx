@@ -111,6 +111,7 @@ export function PreviewPanel({ onClose }: PreviewPanelProps) {
                 </div>
                 {content.profile.photo && (
                   <div className="flex-shrink-0 ml-auto">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={content.profile.photo}
                       alt="证件照"

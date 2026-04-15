@@ -13,5 +13,7 @@ export interface GenerateResult {
 
 export interface AIProvider {
   name: string;
+  apiKey: string;
+  endpoint: string;
   generate(input: GenerateInput): Promise<GenerateResult>;
 }

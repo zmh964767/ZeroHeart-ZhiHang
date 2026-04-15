@@ -31,7 +31,7 @@ export default function EditorPage() {
     if (currentResume) {
       setResumeName(currentResume.name);
     }
-  }, [currentResume?.id, currentResume?.name]);
+  }, [currentResume?.id, currentResume?.name, currentResume]);
 
   const handleBack = () => {
     router.push("/");
