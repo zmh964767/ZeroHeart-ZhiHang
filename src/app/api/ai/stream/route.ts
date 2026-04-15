@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAIProvider } from '@/lib/ai';
-import type { AIProvider } from '@/lib/ai';
 
 interface ErrorResponse {
   error: {
@@ -10,9 +9,11 @@ interface ErrorResponse {
   };
 }
 
-interface AIProviderWithCredentials extends AIProvider {
+interface AIProviderWithCredentials {
+  name: string;
   apiKey: string;
   endpoint: string;
+  generate(input: any): Promise<any>;
 }
 
 function createErrorResponse(code: string, message: string, status: number, details?: string): NextResponse<ErrorResponse> {
